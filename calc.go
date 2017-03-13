@@ -73,23 +73,30 @@ func (l *Lexer) getNextToken() Token {
 
 // PARSER
 type Parser struct {
-	l Lexer
+	l            Lexer
+	currentToken Token
+}
+
+func NewParser(l Lexer) Parser {
+	return Parser{l, l.getNextToken()}
 }
 
 func (p *Parser) eat(tokenType string) error {
-	t := p.l.getNextToken()
-	if t.tokenType != tokenType {
-		return fmt.Errorf("Expected token type %s but got %s", tokenType, t.tokenType)
+	if p.currentToken.tokenType == tokenType {
+		p.currentToken = p.l.getNextToken()
+	} else {
+		return fmt.Errorf("Expected token type %s but got %s", tokenType, p.currentToken.tokenType)
 	}
 	return nil
 }
 
 func (p *Parser) term() (int, error) {
-	t := p.l.getNextToken()
-	if t.tokenType != INTEGER {
-		return 0, fmt.Errorf("Expected INTEGER but got %s", t.tokenType)
+	if p.currentToken.tokenType != INTEGER {
+		return 0, fmt.Errorf("Expected INTEGER but got %s", p.currentToken.tokenType)
 	}
-	return t.value.(int), nil
+	d := p.currentToken.value.(int)
+	p.eat(INTEGER)
+	return d, nil
 }
 
 func (p *Parser) exp() (int, error) {
@@ -98,23 +105,22 @@ func (p *Parser) exp() (int, error) {
 		return 0, err
 	}
 
-	op := p.l.getNextToken()
-
-	for op.tokenType != EOF {
-		if op.tokenType == MINUS {
+	for p.currentToken.tokenType != EOF {
+		if p.currentToken.tokenType == MINUS {
+			p.eat(MINUS)
 			d, err := p.term()
 			if err != nil {
 				return 0, err
 			}
 			result = result - d
-		} else if op.tokenType == PLUS {
+		} else if p.currentToken.tokenType == PLUS {
+			p.eat(PLUS)
 			d, err := p.term()
 			if err != nil {
 				return 0, err
 			}
 			result = result + d
 		}
-		op = p.l.getNextToken()
 	}
 
 	return result, nil
@@ -127,6 +133,6 @@ func main() {
 	input := string(b)
 	l := NewLexer(input)
 	fmt.Println(input)
-	p := Parser{l}
+	p := NewParser(l)
 	fmt.Println(p.exp())
 }
