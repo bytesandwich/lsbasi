@@ -9,6 +9,8 @@ import "strconv"
 
 const PLUS = "PLUS"
 const MINUS = "MINUS"
+const MULTIPLY = "MULTIPLY"
+const DIVIDE = "DIVIDE"
 const EOF = "EOF"
 const INTEGER = "INTEGER"
 
@@ -57,6 +59,14 @@ func (l *Lexer) getNextToken() Token {
 			l.advance()
 			continue
 		}
+		if l.currentRune == '*' {
+			l.advance()
+			return Token{MULTIPLY, l.currentRune}
+		}
+		if l.currentRune == '/' {
+			l.advance()
+			return Token{DIVIDE, l.currentRune}
+		}
 		if l.currentRune == '+' {
 			l.advance()
 			return Token{PLUS, l.currentRune}
@@ -90,6 +100,7 @@ func (p *Parser) eat(tokenType string) error {
 	return nil
 }
 
+// term: INTEGER
 func (p *Parser) term() (int, error) {
 	if p.currentToken.tokenType != INTEGER {
 		return 0, fmt.Errorf("Expected INTEGER but got %s", p.currentToken.tokenType)
@@ -99,31 +110,60 @@ func (p *Parser) term() (int, error) {
 	return d, nil
 }
 
-func (p *Parser) exp() (int, error) {
+// inner : term ((MUL|DIV)term)*
+func (p *Parser) inner() (int, error) {
 	result, err := p.term()
 	if err != nil {
 		return 0, err
 	}
 
-	for p.currentToken.tokenType != EOF {
-		if p.currentToken.tokenType == MINUS {
-			p.eat(MINUS)
+	for p.currentToken.tokenType == MULTIPLY || p.currentToken.tokenType == DIVIDE {
+		if p.currentToken.tokenType == MULTIPLY {
+			p.eat(MULTIPLY)
 			d, err := p.term()
 			if err != nil {
 				return 0, err
 			}
-			result = result - d
-		} else if p.currentToken.tokenType == PLUS {
-			p.eat(PLUS)
+			result = result * d
+		} else if p.currentToken.tokenType == DIVIDE {
+			p.eat(DIVIDE)
 			d, err := p.term()
 			if err != nil {
 				return 0, err
 			}
-			result = result + d
+			result = result / d
 		}
 	}
 
 	return result, nil
+}
+
+// inner : outer ((PLUS|MINUS)outer)*
+func (p *Parser) outer() (int, error) {
+	result, err := p.inner()
+	if err != nil {
+		return 0, err
+	}
+	for p.currentToken.tokenType == PLUS || p.currentToken.tokenType == MINUS {
+		if p.currentToken.tokenType == PLUS {
+			p.eat(PLUS)
+			d, err := p.outer()
+			if err != nil {
+				return 0, err
+			}
+			result = result + d
+		} else if p.currentToken.tokenType == MINUS {
+			p.eat(MINUS)
+			d, err := p.outer()
+			if err != nil {
+				return 0, err
+			}
+			result = result - d
+		}
+	}
+
+	return result, nil
+
 }
 
 func main() {
@@ -134,5 +174,5 @@ func main() {
 	l := NewLexer(input)
 	fmt.Println(input)
 	p := NewParser(l)
-	fmt.Println(p.exp())
+	fmt.Println(p.outer())
 }
