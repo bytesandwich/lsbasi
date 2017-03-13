@@ -11,8 +11,10 @@ const PLUS = "PLUS"
 const MINUS = "MINUS"
 const MULTIPLY = "MULTIPLY"
 const DIVIDE = "DIVIDE"
-const EOF = "EOF"
+const LEFTPAREN = "LEFTPAREN"
+const RIGHTPAREN = "RIGHTPAREN"
 const INTEGER = "INTEGER"
+const EOF = "EOF"
 
 type Token struct {
 	tokenType string
@@ -75,6 +77,14 @@ func (l *Lexer) getNextToken() Token {
 			l.advance()
 			return Token{MINUS, l.currentRune}
 		}
+		if l.currentRune == '(' {
+			l.advance()
+			return Token{LEFTPAREN, l.currentRune}
+		}
+		if l.currentRune == ')' {
+			l.advance()
+			return Token{RIGHTPAREN, l.currentRune}
+		}
 		if unicode.IsDigit(l.currentRune) {
 			return Token{INTEGER, l.integer()}
 		}
@@ -100,19 +110,28 @@ func (p *Parser) eat(tokenType string) error {
 	return nil
 }
 
-// term: INTEGER
-func (p *Parser) term() (int, error) {
-	if p.currentToken.tokenType != INTEGER {
-		return 0, fmt.Errorf("Expected INTEGER but got %s", p.currentToken.tokenType)
+// PARENS : TERM | LEFT_PAREN (PARENS|LOWER) RIGHT_PAREN
+func (p *Parser) parens() (int, error) {
+	if p.currentToken.tokenType == INTEGER {
+		d := p.currentToken.value.(int)
+		p.eat(INTEGER)
+		return d, nil
 	}
-	d := p.currentToken.value.(int)
-	p.eat(INTEGER)
-	return d, nil
+	if p.currentToken.tokenType == LEFTPAREN {
+		p.eat(LEFTPAREN)
+		d, err := p.outer()
+		if err != nil {
+			return 0, err
+		}
+		p.eat(RIGHTPAREN)
+		return d, nil
+	}
+	return 0, fmt.Errorf("Expected PARENS or TERM but got %s", p.currentToken.tokenType)
 }
 
 // inner : term ((MUL|DIV)term)*
 func (p *Parser) inner() (int, error) {
-	result, err := p.term()
+	result, err := p.parens()
 	if err != nil {
 		return 0, err
 	}
@@ -120,14 +139,14 @@ func (p *Parser) inner() (int, error) {
 	for p.currentToken.tokenType == MULTIPLY || p.currentToken.tokenType == DIVIDE {
 		if p.currentToken.tokenType == MULTIPLY {
 			p.eat(MULTIPLY)
-			d, err := p.term()
+			d, err := p.parens()
 			if err != nil {
 				return 0, err
 			}
 			result = result * d
 		} else if p.currentToken.tokenType == DIVIDE {
 			p.eat(DIVIDE)
-			d, err := p.term()
+			d, err := p.parens()
 			if err != nil {
 				return 0, err
 			}
