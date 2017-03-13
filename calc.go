@@ -111,11 +111,12 @@ func (p *Parser) eat(tokenType string) error {
 }
 
 // PARENS : TERM | LEFT_PAREN (PARENS|LOWER) RIGHT_PAREN
-func (p *Parser) parens() (int, error) {
+func (p *Parser) parens() (interface{}, error) {
 	if p.currentToken.tokenType == INTEGER {
+		t := p.currentToken
 		d := p.currentToken.value.(int)
 		p.eat(INTEGER)
-		return d, nil
+		return Num{t, d}, nil
 	}
 	if p.currentToken.tokenType == LEFTPAREN {
 		p.eat(LEFTPAREN)
@@ -130,7 +131,7 @@ func (p *Parser) parens() (int, error) {
 }
 
 // inner : term ((MUL|DIV)term)*
-func (p *Parser) inner() (int, error) {
+func (p *Parser) inner() (interface{}, error) {
 	result, err := p.parens()
 	if err != nil {
 		return 0, err
@@ -138,19 +139,21 @@ func (p *Parser) inner() (int, error) {
 
 	for p.currentToken.tokenType == MULTIPLY || p.currentToken.tokenType == DIVIDE {
 		if p.currentToken.tokenType == MULTIPLY {
+			op := p.currentToken
 			p.eat(MULTIPLY)
 			d, err := p.parens()
 			if err != nil {
 				return 0, err
 			}
-			result = result * d
+			result = BinOp{op, result, d}
 		} else if p.currentToken.tokenType == DIVIDE {
+			op := p.currentToken
 			p.eat(DIVIDE)
 			d, err := p.parens()
 			if err != nil {
 				return 0, err
 			}
-			result = result / d
+			result = BinOp{op, result, d}
 		}
 	}
 
@@ -158,31 +161,54 @@ func (p *Parser) inner() (int, error) {
 }
 
 // inner : outer ((PLUS|MINUS)outer)*
-func (p *Parser) outer() (int, error) {
+func (p *Parser) outer() (interface{}, error) {
 	result, err := p.inner()
 	if err != nil {
 		return 0, err
 	}
 	for p.currentToken.tokenType == PLUS || p.currentToken.tokenType == MINUS {
 		if p.currentToken.tokenType == PLUS {
+			op := p.currentToken
 			p.eat(PLUS)
 			d, err := p.outer()
 			if err != nil {
 				return 0, err
 			}
-			result = result + d
+			result = BinOp{op, result, d}
 		} else if p.currentToken.tokenType == MINUS {
+			op := p.currentToken
 			p.eat(MINUS)
 			d, err := p.outer()
 			if err != nil {
 				return 0, err
 			}
-			result = result - d
+			result = BinOp{op, result, d}
 		}
 	}
 
 	return result, nil
 
+}
+
+// AST
+
+type BinOp struct {
+	op    Token
+	left  interface{}
+	right interface{}
+}
+
+func (b BinOp) String() string {
+	return fmt.Sprintf("%s of %v and %v\n", b.op.tokenType, b.left, b.right)
+}
+
+type Num struct {
+	token Token
+	value int
+}
+
+func (n Num) String() string {
+	return fmt.Sprintf("Num %d\n", n.value)
 }
 
 func main() {
