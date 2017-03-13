@@ -17,10 +17,19 @@ type Token struct {
 	value     interface{}
 }
 
+func (t Token) String() string {
+	return fmt.Sprintf("Token %s of %v\n", t.tokenType, t.value)
+}
+
 type Lexer struct {
 	text        string
 	index       int
 	currentRune rune
+}
+
+func NewLexer(text string) Lexer {
+	r, _ := utf8.DecodeRuneInString(text)
+	return Lexer{text, 0, r}
 }
 
 func (l *Lexer) advance() {
@@ -63,15 +72,61 @@ func (l *Lexer) getNextToken() Token {
 }
 
 // PARSER
+type Parser struct {
+	l Lexer
+}
+
+func (p *Parser) eat(tokenType string) error {
+	t := p.l.getNextToken()
+	if t.tokenType != tokenType {
+		return fmt.Errorf("Expected token type %s but got %s", tokenType, t.tokenType)
+	}
+	return nil
+}
+
+func (p *Parser) term() (int, error) {
+	t := p.l.getNextToken()
+	if t.tokenType != INTEGER {
+		return 0, fmt.Errorf("Expected INTEGER but got %s", t.tokenType)
+	}
+	return t.value.(int), nil
+}
+
+func (p *Parser) exp() (int, error) {
+	result, err := p.term()
+	if err != nil {
+		return 0, err
+	}
+
+	op := p.l.getNextToken()
+
+	for op.tokenType != EOF {
+		if op.tokenType == MINUS {
+			d, err := p.term()
+			if err != nil {
+				return 0, err
+			}
+			result = result - d
+		} else if op.tokenType == PLUS {
+			d, err := p.term()
+			if err != nil {
+				return 0, err
+			}
+			result = result + d
+		}
+		op = p.l.getNextToken()
+	}
+
+	return result, nil
+}
 
 func main() {
 	var b []byte
 	fmt.Print("calc> ")
 	fmt.Scanln(&b)
 	input := string(b)
-	l := Lexer{input, 0, ' '}
-	fmt.Println(string(b))
-	for t := l.getNextToken(); t.tokenType != EOF; t = l.getNextToken() {
-		fmt.Println(t.tokenType)
-	}
+	l := NewLexer(input)
+	fmt.Println(input)
+	p := Parser{l}
+	fmt.Println(p.exp())
 }
