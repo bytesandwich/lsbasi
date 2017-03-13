@@ -1,9 +1,11 @@
 package main
 
+import "bufio"
 import "fmt"
-import "unicode/utf8"
-import "unicode"
+import "os"
 import "strconv"
+import "unicode"
+import "unicode/utf8"
 
 // LEXER
 
@@ -54,38 +56,31 @@ func (l *Lexer) integer() int {
 
 func (l *Lexer) getNextToken() Token {
 	for {
-		if l.index > len(l.text)-1 {
+		switch {
+		case l.index > len(l.text)-1:
 			return Token{EOF, ""}
-		}
-		if unicode.IsSpace(l.currentRune) {
+		case unicode.IsSpace(l.currentRune):
 			l.advance()
 			continue
-		}
-		if l.currentRune == '*' {
+		case l.currentRune == '*':
 			l.advance()
 			return Token{MULTIPLY, l.currentRune}
-		}
-		if l.currentRune == '/' {
+		case l.currentRune == '/':
 			l.advance()
 			return Token{DIVIDE, l.currentRune}
-		}
-		if l.currentRune == '+' {
+		case l.currentRune == '+':
 			l.advance()
 			return Token{PLUS, l.currentRune}
-		}
-		if l.currentRune == '-' {
+		case l.currentRune == '-':
 			l.advance()
 			return Token{MINUS, l.currentRune}
-		}
-		if l.currentRune == '(' {
+		case l.currentRune == '(':
 			l.advance()
 			return Token{LEFTPAREN, l.currentRune}
-		}
-		if l.currentRune == ')' {
+		case l.currentRune == ')':
 			l.advance()
 			return Token{RIGHTPAREN, l.currentRune}
-		}
-		if unicode.IsDigit(l.currentRune) {
+		case unicode.IsDigit(l.currentRune):
 			return Token{INTEGER, l.integer()}
 		}
 	}
@@ -236,10 +231,10 @@ func (n Num) Eval() int {
 }
 
 func main() {
-	var b []byte
 	fmt.Print("calc> ")
-	fmt.Scanln(&b)
-	input := string(b)
+	reader := bufio.NewReader(os.Stdin)
+	input, _ := reader.ReadString('\n')
+	fmt.Println("[" + input + "]")
 	l := NewLexer(input)
 	fmt.Println(input)
 	p := NewParser(l)
