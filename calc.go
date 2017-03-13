@@ -111,7 +111,7 @@ func (p *Parser) eat(tokenType string) error {
 }
 
 // PARENS : TERM | LEFT_PAREN (PARENS|LOWER) RIGHT_PAREN
-func (p *Parser) parens() (interface{}, error) {
+func (p *Parser) parens() (AST, error) {
 	if p.currentToken.tokenType == INTEGER {
 		t := p.currentToken
 		d := p.currentToken.value.(int)
@@ -122,19 +122,19 @@ func (p *Parser) parens() (interface{}, error) {
 		p.eat(LEFTPAREN)
 		d, err := p.outer()
 		if err != nil {
-			return 0, err
+			return nil, err
 		}
 		p.eat(RIGHTPAREN)
 		return d, nil
 	}
-	return 0, fmt.Errorf("Expected PARENS or TERM but got %s", p.currentToken.tokenType)
+	return nil, fmt.Errorf("Expected PARENS or TERM but got %s", p.currentToken.tokenType)
 }
 
 // inner : term ((MUL|DIV)term)*
-func (p *Parser) inner() (interface{}, error) {
+func (p *Parser) inner() (AST, error) {
 	result, err := p.parens()
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
 	for p.currentToken.tokenType == MULTIPLY || p.currentToken.tokenType == DIVIDE {
@@ -143,7 +143,7 @@ func (p *Parser) inner() (interface{}, error) {
 			p.eat(MULTIPLY)
 			d, err := p.parens()
 			if err != nil {
-				return 0, err
+				return nil, err
 			}
 			result = BinOp{op, result, d}
 		} else if p.currentToken.tokenType == DIVIDE {
@@ -151,7 +151,7 @@ func (p *Parser) inner() (interface{}, error) {
 			p.eat(DIVIDE)
 			d, err := p.parens()
 			if err != nil {
-				return 0, err
+				return nil, err
 			}
 			result = BinOp{op, result, d}
 		}
@@ -161,10 +161,10 @@ func (p *Parser) inner() (interface{}, error) {
 }
 
 // inner : outer ((PLUS|MINUS)outer)*
-func (p *Parser) outer() (interface{}, error) {
+func (p *Parser) outer() (AST, error) {
 	result, err := p.inner()
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	for p.currentToken.tokenType == PLUS || p.currentToken.tokenType == MINUS {
 		if p.currentToken.tokenType == PLUS {
@@ -172,7 +172,7 @@ func (p *Parser) outer() (interface{}, error) {
 			p.eat(PLUS)
 			d, err := p.outer()
 			if err != nil {
-				return 0, err
+				return nil, err
 			}
 			result = BinOp{op, result, d}
 		} else if p.currentToken.tokenType == MINUS {
@@ -180,7 +180,7 @@ func (p *Parser) outer() (interface{}, error) {
 			p.eat(MINUS)
 			d, err := p.outer()
 			if err != nil {
-				return 0, err
+				return nil, err
 			}
 			result = BinOp{op, result, d}
 		}
@@ -191,15 +191,35 @@ func (p *Parser) outer() (interface{}, error) {
 }
 
 // AST
+type AST interface {
+	Eval() int
+}
 
 type BinOp struct {
 	op    Token
-	left  interface{}
-	right interface{}
+	left  AST
+	right AST
 }
 
 func (b BinOp) String() string {
 	return fmt.Sprintf("%s of %v and %v\n", b.op.tokenType, b.left, b.right)
+}
+
+func (b BinOp) Eval() int {
+	leftVal := b.left.Eval()
+	rightVal := b.right.Eval()
+	switch op := b.op.tokenType; op {
+	case MINUS:
+		return leftVal - rightVal
+	case PLUS:
+		return leftVal + rightVal
+	case MULTIPLY:
+		return leftVal * rightVal
+	case DIVIDE:
+		return leftVal / rightVal
+	default:
+		return -1
+	}
 }
 
 type Num struct {
@@ -211,6 +231,10 @@ func (n Num) String() string {
 	return fmt.Sprintf("Num %d\n", n.value)
 }
 
+func (n Num) Eval() int {
+	return n.value
+}
+
 func main() {
 	var b []byte
 	fmt.Print("calc> ")
@@ -219,5 +243,6 @@ func main() {
 	l := NewLexer(input)
 	fmt.Println(input)
 	p := NewParser(l)
-	fmt.Println(p.outer())
+	ast, _ := p.outer()
+	fmt.Println(ast.Eval())
 }
