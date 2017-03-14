@@ -107,6 +107,15 @@ func (p *Parser) eat(tokenType string) error {
 
 // PARENS : TERM | LEFT_PAREN (PARENS|LOWER) RIGHT_PAREN
 func (p *Parser) parens() (AST, error) {
+	if p.currentToken.tokenType == MINUS || p.currentToken.tokenType == PLUS {
+		t := p.currentToken
+		p.eat(p.currentToken.tokenType)
+		d, err := p.parens()
+		if err != nil {
+			return nil, err
+		}
+		return UnaryOp{t, d}, nil
+	}
 	if p.currentToken.tokenType == INTEGER {
 		t := p.currentToken
 		d := p.currentToken.value.(int)
@@ -127,7 +136,7 @@ func (p *Parser) parens() (AST, error) {
 
 // inner : term ((MUL|DIV)term)*
 func (p *Parser) inner() (AST, error) {
-	result, err := p.parens()
+	ast, err := p.parens()
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +149,7 @@ func (p *Parser) inner() (AST, error) {
 			if err != nil {
 				return nil, err
 			}
-			result = BinOp{op, result, d}
+			ast = BinOp{op, ast, d}
 		} else if p.currentToken.tokenType == DIVIDE {
 			op := p.currentToken
 			p.eat(DIVIDE)
@@ -148,16 +157,16 @@ func (p *Parser) inner() (AST, error) {
 			if err != nil {
 				return nil, err
 			}
-			result = BinOp{op, result, d}
+			ast = BinOp{op, ast, d}
 		}
 	}
 
-	return result, nil
+	return ast, nil
 }
 
-// inner : outer ((PLUS|MINUS)outer)*
+// outer : inner ((PLUS|MINUS)inner)*
 func (p *Parser) outer() (AST, error) {
-	result, err := p.inner()
+	ast, err := p.inner()
 	if err != nil {
 		return nil, err
 	}
@@ -165,29 +174,50 @@ func (p *Parser) outer() (AST, error) {
 		if p.currentToken.tokenType == PLUS {
 			op := p.currentToken
 			p.eat(PLUS)
-			d, err := p.outer()
+			d, err := p.inner()
 			if err != nil {
 				return nil, err
 			}
-			result = BinOp{op, result, d}
+			ast = BinOp{op, ast, d}
 		} else if p.currentToken.tokenType == MINUS {
 			op := p.currentToken
 			p.eat(MINUS)
-			d, err := p.outer()
+			d, err := p.inner()
 			if err != nil {
 				return nil, err
 			}
-			result = BinOp{op, result, d}
+			ast = BinOp{op, ast, d}
 		}
 	}
 
-	return result, nil
+	return ast, nil
 
 }
 
 // AST
 type AST interface {
 	Eval() int
+}
+
+type UnaryOp struct {
+	op  Token
+	arg AST
+}
+
+func (u UnaryOp) String() string {
+	return fmt.Sprintf("%s(%v)", u.op.tokenType, u.arg)
+}
+
+func (u UnaryOp) Eval() int {
+	argVal := u.arg.Eval()
+	switch op := u.op.tokenType; op {
+	case MINUS:
+		return -1 * argVal
+	case PLUS:
+		return argVal
+	default:
+		return -100000000
+	}
 }
 
 type BinOp struct {
@@ -197,7 +227,7 @@ type BinOp struct {
 }
 
 func (b BinOp) String() string {
-	return fmt.Sprintf("%s of %v and %v\n", b.op.tokenType, b.left, b.right)
+	return fmt.Sprintf("%s of (%v and %v)\n", b.op.tokenType, b.left, b.right)
 }
 
 func (b BinOp) Eval() int {
@@ -213,7 +243,7 @@ func (b BinOp) Eval() int {
 	case DIVIDE:
 		return leftVal / rightVal
 	default:
-		return -1
+		return -1000000000
 	}
 }
 
@@ -223,7 +253,7 @@ type Num struct {
 }
 
 func (n Num) String() string {
-	return fmt.Sprintf("Num %d\n", n.value)
+	return fmt.Sprintf("%d", n.value)
 }
 
 func (n Num) Eval() int {
