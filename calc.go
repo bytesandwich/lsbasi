@@ -3,6 +3,8 @@ package main
 import "bufio"
 import "fmt"
 import "os"
+import "regexp"
+import "strings"
 import "strconv"
 import "unicode"
 import "unicode/utf8"
@@ -17,6 +19,13 @@ const LEFTPAREN = "LEFTPAREN"
 const RIGHTPAREN = "RIGHTPAREN"
 const INTEGER = "INTEGER"
 const EOF = "EOF"
+
+const BEGIN = "BEGIN"
+const END = "END"
+const DOT = "DOT"
+const ASSIGN = "ASSIGN"
+const SEMI = "SEMI"
+const ID = "ID"
 
 type Token struct {
 	tokenType string
@@ -43,6 +52,13 @@ func (l *Lexer) advance() {
 	l.index += size
 	l.currentRune, _ = utf8.DecodeRuneInString(l.text[l.index:])
 }
+
+func (l *Lexer) advanceN(n int) {
+	for i := 0; i < n; i++ {
+		l.advance()
+	}
+}
+
 func (l *Lexer) integer() int {
 	var s string = string(l.currentRune)
 	l.advance()
@@ -54,6 +70,8 @@ func (l *Lexer) integer() int {
 	return d
 }
 
+var re = regexp.MustCompile("^[[:alpha:]][[:alnum:]]*")
+
 func (l *Lexer) getNextToken() Token {
 	for {
 		switch {
@@ -62,6 +80,15 @@ func (l *Lexer) getNextToken() Token {
 		case unicode.IsSpace(l.currentRune):
 			l.advance()
 			continue
+		case strings.HasPrefix(l.text[l.index:], ":="):
+			l.advanceN(2)
+			return Token{ASSIGN, ":="}
+		case l.currentRune == ';':
+			l.advance()
+			return Token{SEMI, l.currentRune}
+		case l.currentRune == '.':
+			l.advance()
+			return Token{DOT, l.currentRune}
 		case l.currentRune == '*':
 			l.advance()
 			return Token{MULTIPLY, l.currentRune}
@@ -82,6 +109,18 @@ func (l *Lexer) getNextToken() Token {
 			return Token{RIGHTPAREN, l.currentRune}
 		case unicode.IsDigit(l.currentRune):
 			return Token{INTEGER, l.integer()}
+		default:
+			matched := re.FindString(l.text[l.index:])
+			if len(matched) > 0 {
+				l.advanceN(len(matched))
+				if matched == "END" {
+					return Token{END, "END"}
+				}
+				if matched == "BEGIN" {
+					return Token{BEGIN, "BEGIN"}
+				}
+				return Token{ID, matched}
+			}
 		}
 	}
 }
@@ -267,7 +306,10 @@ func main() {
 	fmt.Println("[" + input + "]")
 	l := NewLexer(input)
 	fmt.Println(input)
-	p := NewParser(l)
-	ast, _ := p.outer()
-	fmt.Println(ast.Eval())
+	for t := l.getNextToken(); t.tokenType != EOF; t = l.getNextToken() {
+		fmt.Println(t)
+	}
+	// p := NewParser(l)
+	// ast, _ := p.outer()
+	// fmt.Println(ast.Eval())
 }
